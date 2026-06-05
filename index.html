@@ -596,20 +596,20 @@ dlBtn.addEventListener('click', async () => {
 
   const {html} = buildAllSheets(cards);
 
+  // Overlay covers the render container from user view
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = '<span style="color:#fff;font-size:15px;font-family:sans-serif">Создаём PDF…</span>';
+  document.body.appendChild(overlay);
+
+  // Must be in visible viewport area — html2canvas can't capture off-screen elements
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:absolute;left:-10000px;top:0;width:198mm;background:#fff;';
-
-  const styleEl = document.createElement('style');
-  styleEl.textContent = '*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    + sheetCss(mult, folds)
-    + '.sheet{page-break-after:always}.sheet:last-child{page-break-after:auto}';
-  wrap.appendChild(styleEl);
-
-  const content = document.createElement('div');
-  content.innerHTML = html;
-  wrap.appendChild(content);
-
+  wrap.style.cssText = 'position:fixed;top:0;left:0;width:198mm;background:#fff;';
+  wrap.innerHTML = html;
   document.body.appendChild(wrap);
+
+  // Wait for browser to paint before capturing
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   try {
     await html2pdf()
@@ -619,7 +619,7 @@ dlBtn.addEventListener('click', async () => {
         image: { type: 'jpeg', quality: 0.99 },
         html2canvas: { scale: 3, useCORS: true, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: 'css' }
+        pagebreak: { before: '.sheet' }
       })
       .from(wrap)
       .save();
@@ -628,6 +628,7 @@ dlBtn.addEventListener('click', async () => {
     alert('Ошибка при генерации PDF');
   } finally {
     document.body.removeChild(wrap);
+    document.body.removeChild(overlay);
     dlBtn.disabled = false;
     dlBtn.textContent = origText;
   }
